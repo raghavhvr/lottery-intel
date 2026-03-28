@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lottery Intel — GDELT News Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0f1117;
+      --surface:   #1a1d27;
+      --border:    #2a2d3a;
+      --text:      #e2e8f0;
+      --muted:     #8892a4;
+      --accent:    #f59e0b;
+      --accent-2:  #10b981;
+      --danger:    #ef4444;
+      --radius:    10px;
+      --font:      -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      min-height: 100vh;
+      padding: 0 0 60px;
+    }
+
+    /* ── Header ── */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header h1 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em; }
+    header h1 span { color: var(--accent); }
+    .badge {
+      font-size: 0.7rem;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 999px;
+      background: rgba(245,158,11,0.15);
+      color: var(--accent);
+      border: 1px solid rgba(245,158,11,0.3);
+      margin-left: auto;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      flex-shrink: 0;
+    }
+    .status-dot.live { background: var(--accent-2); box-shadow: 0 0 6px var(--accent-2); }
+
+    /* ── Tabs ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      padding: 16px 24px 0;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab {
+      padding: 8px 16px;
+      border-radius: var(--radius) var(--radius) 0 0;
+      border: 1px solid transparent;
+      border-bottom: none;
+      background: transparent;
+      color: var(--muted);
+      font-size: 0.875rem;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+      font-family: var(--font);
+    }
+    .tab:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+    .tab.active {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+      position: relative;
+    }
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px; left: 0; right: 0;
+      height: 1px;
+      background: var(--surface);
+    }
+
+    /* ── Content ── */
+    .content {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 0 var(--radius) var(--radius) var(--radius);
+      margin: 0 24px;
+      padding: 24px;
+      min-height: 400px;
+    }
+
+    /* ── Stats bar ── */
+    .stats {
+      display: flex;
+      gap: 20px;
+      margin-bottom: 20px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .stat { display: flex; flex-direction: column; gap: 2px; }
+    .stat-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+    .stat-value { font-size: 1.1rem; font-weight: 700; }
+    .stat-value.positive { color: var(--accent-2); }
+    .stat-value.negative { color: var(--danger); }
+    .stat-value.neutral  { color: var(--accent); }
+
+    /* ── Timeline chart ── */
+    .chart-wrap {
+      margin-bottom: 24px;
+    }
+    .chart-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 8px;
+      display: flex;
+      gap: 16px;
+    }
+    .chart-label span { display: flex; align-items: center; gap: 5px; }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    canvas { width: 100%; height: 80px; display: block; }
+
+    /* ── Articles ── */
+    .articles { display: flex; flex-direction: column; gap: 12px; }
+    .article {
+      display: flex;
+      gap: 14px;
+      padding: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      text-decoration: none;
+      color: inherit;
+      transition: border-color 0.15s;
+    }
+    .article:hover { border-color: var(--accent); }
+    .article-thumb {
+      width: 72px; height: 54px;
+      border-radius: 6px;
+      object-fit: cover;
+      flex-shrink: 0;
+      background: var(--border);
+    }
+    .article-body { flex: 1; min-width: 0; }
+    .article-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      line-height: 1.4;
+      margin-bottom: 6px;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+    .article-meta {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .tone-pill {
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 0.68rem;
+      font-weight: 600;
+    }
+    .tone-pos { background: rgba(16,185,129,0.15); color: var(--accent-2); }
+    .tone-neg { background: rgba(239,68,68,0.15);  color: var(--danger); }
+    .tone-neu { background: rgba(139,148,158,0.15); color: var(--muted); }
+
+    /* ── Empty / loading ── */
+    .empty {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 60px 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .empty .icon { font-size: 2.5rem; }
+    .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .fetched-at { font-size: 0.7rem; color: var(--muted); margin-top: 16px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="status-dot" id="statusDot"></div>
+  <h1>🎰 Lottery <span>Intel</span></h1>
+  <div class="badge">Powered by GDELT</div>
+</header>
+
+<div class="tabs" id="tabs"></div>
+
+<div class="content" id="content">
+  <div class="empty"><div class="spinner"></div><span>Loading...</span></div>
+</div>
+
+<script>
+const TOPICS = [
+  { id: 'jackpot',     name: 'Jackpots',            icon: '🎰' },
+  { id: 'winners',     name: 'Winners',              icon: '🏆' },
+  { id: 'draws',       name: 'Draws & Results',      icon: '🎱' },
+  { id: 'regulation',  name: 'Regulation',           icon: '⚖️' },
+  { id: 'scams',       name: 'Scams & Fraud',        icon: '⚠️' },
+  { id: 'fundraising', name: 'Charity & Fundraising', icon: '❤️' },
+];
+
+let allData     = null;  // full /api/topics response
+let activeTopic = TOPICS[0].id;
+let timelines   = {};    // { topicId: { tone, vol } }
+
+// ── Fetch all data ────────────────────────────────────────────────
+async function loadData() {
+  try {
+    const resp = await fetch('/api/topics');
+    const json = await resp.json();
+    allData = json;
+    document.getElementById('statusDot').classList.toggle('live', (json.topics?.length ?? 0) > 0);
+    renderTabs();
+    renderContent(activeTopic);
+    loadTimeline(activeTopic);
+  } catch {
+    document.getElementById('content').innerHTML = `
+      <div class="empty">
+        <div class="icon">⚠️</div>
+        <span>Could not load data. Is the API running?</span>
+      </div>`;
+  }
+}
+
+async function loadTimeline(topicId) {
+  if (timelines[topicId]) return;
+  try {
+    const resp = await fetch(`/api/timeline?topic=${topicId}`);
+    const json = await resp.json();
+    timelines[topicId] = json;
+    if (activeTopic === topicId) renderContent(topicId); // re-render with chart
+  } catch { /* best-effort */ }
+}
+
+// ── Tabs ─────────────────────────────────────────────────────────
+function renderTabs() {
+  const container = document.getElementById('tabs');
+  container.innerHTML = '';
+  for (const t of TOPICS) {
+    const count  = getTopicData(t.id)?.articles?.length ?? 0;
+    const btn    = document.createElement('button');
+    btn.className = 'tab' + (t.id === activeTopic ? ' active' : '');
+    btn.textContent = `${t.icon} ${t.name}${count ? ` (${count})` : ''}`;
+    btn.onclick = () => {
+      activeTopic = t.id;
+      renderTabs();
+      renderContent(t.id);
+      loadTimeline(t.id);
+    };
+    container.appendChild(btn);
+  }
+}
+
+function getTopicData(id) {
+  return allData?.topics?.find(t => t.id === id) ?? null;
+}
+
+// ── Content ───────────────────────────────────────────────────────
+function renderContent(topicId) {
+  const topic    = TOPICS.find(t => t.id === topicId);
+  const data     = getTopicData(topicId);
+  const articles = data?.articles ?? [];
+  const timeline = timelines[topicId];
+  const content  = document.getElementById('content');
+
+  if (!allData) {
+    content.innerHTML = `<div class="empty"><div class="spinner"></div><span>Loading...</span></div>`;
+    return;
+  }
+  if (allData.error === 'seed-unavailable') {
+    content.innerHTML = `
+      <div class="empty">
+        <div class="icon">🌱</div>
+        <span>Seed not yet available — run the seeder on Railway first.</span>
+      </div>`;
+    return;
+  }
+  if (articles.length === 0) {
+    content.innerHTML = `
+      <div class="empty">
+        <div class="icon">${topic.icon}</div>
+        <span>No articles for "${topic.name}" in the last 24 hours.</span>
+      </div>`;
+    return;
+  }
+
+  // Stats
+  const tones    = articles.map(a => a.tone).filter(t => typeof t === 'number');
+  const avgTone  = tones.length ? (tones.reduce((a, b) => a + b, 0) / tones.length) : null;
+  const toneClass = avgTone === null ? 'neutral' : avgTone > 1 ? 'positive' : avgTone < -1 ? 'negative' : 'neutral';
+  const toneStr   = avgTone === null ? '—' : (avgTone > 0 ? '+' : '') + avgTone.toFixed(1);
+
+  let html = `
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-label">Articles</div>
+        <div class="stat-value neutral">${articles.length}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Avg Tone</div>
+        <div class="stat-value ${toneClass}">${toneStr}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Sources</div>
+        <div class="stat-value">${new Set(articles.map(a => a.source)).size}</div>
+      </div>
+    </div>`;
+
+  // Timeline chart (if available)
+  if (timeline?.tone?.length || timeline?.vol?.length) {
+    html += renderChart(timeline);
+  }
+
+  // Article list
+  html += `<div class="articles">`;
+  for (const a of articles) {
+    const toneVal   = typeof a.tone === 'number' ? a.tone : 0;
+    const tonePill  = toneVal > 1 ? `<span class="tone-pill tone-pos">+${toneVal.toFixed(1)}</span>`
+                    : toneVal < -1 ? `<span class="tone-pill tone-neg">${toneVal.toFixed(1)}</span>`
+                    : `<span class="tone-pill tone-neu">neutral</span>`;
+    const dateStr   = formatDate(a.date);
+    const imgHtml   = a.image
+      ? `<img class="article-thumb" src="${escHtml(a.image)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+      : '';
+    html += `
+      <a class="article" href="${escHtml(a.url)}" target="_blank" rel="noopener noreferrer">
+        ${imgHtml}
+        <div class="article-body">
+          <div class="article-title">${escHtml(a.title)}</div>
+          <div class="article-meta">
+            <span>${escHtml(a.source)}</span>
+            ${dateStr ? `<span>${escHtml(dateStr)}</span>` : ''}
+            ${tonePill}
+          </div>
+        </div>
+      </a>`;
+  }
+  html += `</div>`;
+
+  if (data?.fetchedAt) {
+    html += `<div class="fetched-at">Last seeded: ${new Date(data.fetchedAt).toLocaleString()}</div>`;
+  }
+
+  content.innerHTML = html;
+}
+
+// ── Mini sparkline chart ─────────────────────────────────────────
+function renderChart(timeline) {
+  const id = `chart-${Date.now()}`;
+  // Draw after the element is in DOM
+  setTimeout(() => {
+    const canvas = document.getElementById(id);
+    if (!canvas) return;
+    const ctx    = canvas.getContext('2d');
+    const dpr    = window.devicePixelRatio || 1;
+    const w      = canvas.offsetWidth;
+    const h      = canvas.offsetHeight;
+    canvas.width  = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    const tone = timeline.tone || [];
+    const vol  = timeline.vol  || [];
+
+    function drawLine(points, color, yMin, yMax) {
+      if (points.length < 2) return;
+      const xStep = w / (points.length - 1);
+      const range = yMax - yMin || 1;
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth   = 1.5;
+      ctx.lineJoin    = 'round';
+      points.forEach((pt, i) => {
+        const x = i * xStep;
+        const y = h - ((pt.value - yMin) / range) * (h * 0.8) - h * 0.1;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    if (tone.length > 1) {
+      const vals = tone.map(p => p.value);
+      drawLine(tone, '#f59e0b', Math.min(...vals), Math.max(...vals));
+    }
+    if (vol.length > 1) {
+      const vals = vol.map(p => p.value);
+      drawLine(vol, '#10b981', Math.min(...vals), Math.max(...vals));
+    }
+  }, 0);
+
+  return `
+    <div class="chart-wrap">
+      <div class="chart-label">
+        <span><span class="legend-dot" style="background:#f59e0b"></span> Tone (14d)</span>
+        <span><span class="legend-dot" style="background:#10b981"></span> Volume (14d)</span>
+      </div>
+      <canvas id="${id}" style="height:80px"></canvas>
+    </div>`;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    // GDELT compact format: "20260327T093000Z"
+    const y = dateStr.slice(0, 4), mo = dateStr.slice(4, 6), d = dateStr.slice(6, 8);
+    const h = dateStr.slice(9, 11), mi = dateStr.slice(11, 13);
+    const dt   = new Date(`${y}-${mo}-${d}T${h}:${mi}:00Z`);
+    const diff = Date.now() - dt.getTime();
+    if (diff < 0)         return 'just now';
+    if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+    if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+    return `${Math.floor(diff / 86_400_000)}d ago`;
+  } catch { return ''; }
+}
+
+function escHtml(str) {
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Boot ──────────────────────────────────────────────────────────
+loadData();
+setInterval(loadData, 5 * 60 * 1000); // refresh every 5 min
+</script>
+</body>
+</html>
