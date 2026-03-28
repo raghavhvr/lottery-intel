@@ -1,5 +1,8 @@
 [phases.install]
 cmds = ["npm ci"]
 
+[phases.build]
+cmds = ["echo 'no build step'"]
+
 [start]
 cmd = "node scripts/seed.mjs"

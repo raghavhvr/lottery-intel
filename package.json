@@ -4,8 +4,6 @@
   "description": "Lottery news intelligence powered by GDELT",
   "type": "module",
   "scripts": {
-    "dev": "node --watch api/server.js",
-    "start": "node api/server.js",
     "seed": "node scripts/seed.mjs"
   },
   "dependencies": {
